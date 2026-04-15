@@ -1,0 +1,3 @@
+/home/book/SmartGateway/build/CMakeFiles/rebuild_cache.dir
+/home/book/SmartGateway/build/CMakeFiles/gateway_app.dir
+/home/book/SmartGateway/build/CMakeFiles/edit_cache.dir

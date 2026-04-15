@@ -1,0 +1,1 @@
+/home/book/100ask_imx6ull-sdk/ToolChain/arm-buildroot-linux-gnueabihf_sdk-buildroot/bin/arm-buildroot-linux-gnueabihf-g++     CMakeFiles/gateway_app.dir/src/main.cpp.o CMakeFiles/gateway_app.dir/src/CpuSensor.cpp.o CMakeFiles/gateway_app.dir/src/LightSensor.cpp.o CMakeFiles/gateway_app.dir/src/EepromStorage.cpp.o  -o gateway_app -lpthread 
