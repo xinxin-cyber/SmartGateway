@@ -13,3 +13,10 @@ add_executable(gateway_app src/main.cpp src/CpuSensor.cpp src/LightSensor.cpp sr
 # === 新增下面两行，支持多线程 ===
 find_package(Threads REQUIRED)
 target_link_libraries(gateway_app Threads::Threads)
+
+add_executable(fb_test src/fb_test.cpp)
+
+add_executable(gateway_ui src/main_ui.cpp src/CpuSensor.cpp src/LightSensor.cpp src/gui.cpp)
+find_package(Threads REQUIRED)
+target_link_libraries(gateway_ui Threads::Threads)
+
