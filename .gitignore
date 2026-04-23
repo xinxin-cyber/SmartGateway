@@ -28,3 +28,4 @@ gateway_app
 .vscode/
 .DS_Store
 *.swp
+opencv-mobile-4.13.0/
