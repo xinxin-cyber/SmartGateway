@@ -56,7 +56,7 @@ graph TD
 
 > 展示从 Linux 内核到微服务应用层的严格解耦映射。
 
-```mermaid
+
 architecture-beta
     group OS(cloud)[Linux OS / Kernel]
     group HAL(folder)[HAL 硬件抽象层]
@@ -102,7 +102,7 @@ architecture-beta
 
 > 以定时上报任务为例，展示 Reactor 引擎运转的微观生命周期。
 
-```mermaid
+
 sequenceDiagram
     participant Kernel as Linux 内核 (Hardware Timer)
     participant TimerFd as timerfd (FD)
@@ -131,7 +131,7 @@ sequenceDiagram
 
 ## 📂 工程目录树
 
-```text
+
 SmartGateway/
 ├── CMakeLists.txt        # 全局支持多微服务交叉编译
 ├── config/               # 存放 json 配置文件 (规划中)
