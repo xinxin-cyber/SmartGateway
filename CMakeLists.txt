@@ -13,7 +13,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # 全局头文件路径
 include_directories(${PROJECT_SOURCE_DIR}/include)
-
+include_directories(${PROJECT_SOURCE_DIR}/src/core)
 # ==============================
 # 第三方 SDK 路径（统一管理区）
 # ==============================
@@ -56,8 +56,22 @@ add_executable(mqtt_client src/mqtt_client.cpp)
 
 target_link_libraries(mqtt_client mosquitto)
 
+# 定义核心库文件
+set(CORE_SOURCES
+    src/core/Channel.cpp
+    src/core/EventLoop.cpp
+    src/core/PeriodicTimer.cpp
+)
+
 # 🌟 V1.0 终极融合版：UI + 传感器 + MQTT
-add_executable(fusion_app src/main_fusion.cpp src/CpuSensor.cpp src/LightSensor.cpp src/gui.cpp src/EepromStorage.cpp)
+add_executable(fusion_app
+    src/main_fusion.cpp
+    src/CpuSensor.cpp
+    src/LightSensor.cpp
+    src/EepromStorage.cpp
+    src/gui.cpp
+    ${CORE_SOURCES}    # <--- 重点：把新心脏挂载进主程序
+)
 target_link_libraries(fusion_app Threads::Threads mosquitto)
 
 
