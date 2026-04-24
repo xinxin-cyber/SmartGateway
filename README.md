@@ -134,6 +134,8 @@ sequenceDiagram
 ## 📂 工程目录树
 
 
+
+
 SmartGateway/
 ├── CMakeLists.txt        # 全局支持多微服务交叉编译
 ├── config/               # 存放 json 配置文件 (规划中)
