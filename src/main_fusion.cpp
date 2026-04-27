@@ -280,6 +280,8 @@ int main() {
         	// 第 2 层 (顶层)：叠加绿色的字 
         	// 坐标 (10, 10)，字色 0x00FF00
 		drawString(pixel_ptr, vinfo.xres, 10, 10, info, 0x00FF00);
+		std::string light_info = "Light: " + std::to_string((int)globalData.ambient_light) + " Lx";
+		drawString(pixel_ptr, vinfo.xres, 10, 40, light_info, 0xFFFF00);
     	});
    	shmChannel.enableReading(); // 启动视频帧监听
 	std::cout << "[EventLoop] Reactor 引擎启动，接管进程..." << std::endl;

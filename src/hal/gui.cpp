@@ -7,9 +7,8 @@
 
 // --- 1. 仅重写字库获取函数，使用完整8x16字库，其余代码完全不动 ---
 const unsigned char* getFontData(char c) {
-    #define FONT_HEIGHT 16
-    #define ASCII_START 0x20  // 空格开始
-    
+    const int FONT_HEIGHT = 16;    // ✅ 正确：局部常量，不会被覆盖
+    const int ASCII_START = 0x20;
     // 超出可打印字符，返回空格
     if (c < ASCII_START || c > 0x7E) {
         return fontdata_8x16; // 空格点阵
