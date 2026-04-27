@@ -14,6 +14,10 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # 全局头文件路径
 include_directories(${PROJECT_SOURCE_DIR}/include)
 include_directories(${PROJECT_SOURCE_DIR}/src/core)
+include_directories(${PROJECT_SOURCE_DIR}/src/hal)
+include_directories(${PROJECT_SOURCE_DIR}/src/ipc)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/fonts) 
+
 # ==============================
 # 第三方 SDK 路径（统一管理区）
 # ==============================
@@ -47,8 +51,8 @@ target_link_libraries(gateway_app Threads::Threads)
 add_executable(fb_test src/fb_test.cpp)
 
 # UI 网关
-add_executable(gateway_ui src/main_ui.cpp src/CpuSensor.cpp src/LightSensor.cpp src/gui.cpp)
-target_link_libraries(gateway_ui Threads::Threads)
+#add_executable(gateway_ui src/main_ui.cpp src/CpuSensor.cpp src/LightSensor.cpp src/gui.cpp)
+#target_link_libraries(gateway_ui Threads::Threads)
 
 # 网络通信测试
 add_executable(tcp_client src/tcp_client.cpp)
@@ -69,7 +73,9 @@ add_executable(fusion_app
     src/CpuSensor.cpp
     src/LightSensor.cpp
     src/EepromStorage.cpp
-    src/gui.cpp
+    src/hal/gui.cpp
+    src/ipc/SharedMemory.cpp
+    src/ipc/IpcServer.cpp
     ${CORE_SOURCES}    # <--- 重点：把新心脏挂载进主程序
 )
 target_link_libraries(fusion_app Threads::Threads mosquitto)
@@ -81,7 +87,7 @@ target_link_libraries(fusion_app Threads::Threads mosquitto)
 
 # 🚀 架构测试：多进程与共享内存 IPC (零拷贝通信)
 # 因为没用到外部库，直接编译即可
-add_executable(ipc_test src/ipc_test.cpp)
+#add_executable(ipc_test src/ipc_test.cpp)
 
 # 👁️ 视觉测试：OpenCV-mobile 离线渲染引擎
 # 必须链接 OpenCV 的核心计算库和图像处理库
@@ -109,3 +115,8 @@ target_link_libraries(cv_test ${OPENCV_LIBS})
 target_link_libraries(cv_test1 ${OPENCV_LIBS})
 target_link_libraries(cv_gateway ${OPENCV_LIBS})
 
+# =========================================================
+# Phase 2 临时测试靶场 (UDS 测试)
+# =========================================================
+add_executable(ipc_test src/ipc_test.cpp src/ipc/IpcServer.cpp)
+target_link_libraries(ipc_test Threads::Threads)

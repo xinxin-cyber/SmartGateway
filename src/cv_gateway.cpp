@@ -3,8 +3,9 @@
 #include <unistd.h>
 #include <sys/ioctl.h>
 #include <sys/mman.h>
-#include <sys/shm.h>      
-#include <sys/wait.h>     
+#include <sys/shm.h>
+#include <sys/socket.h>
+#include <sys/un.h>
 #include <linux/videodev2.h>
 #include <string.h>
 
@@ -12,115 +13,108 @@
 #include <opencv2/imgproc.hpp>
 #include <opencv2/highgui/highgui.hpp>
 
-// 【拼图 1】：我们刚刚跑通的共享内存蓝图
-struct SharedVisionData {
-    volatile int is_ready;              
-    int frame_size;                     
-    unsigned char payload[512 * 1024];  
-};
+using namespace std;
+using namespace cv;
 
 int main() {
-    std::cout << "========== V2.0 双核高并发视觉网关启动 ==========" << std::endl;
+    cout << "========== 👁️ Orion Vision Engine V2.0 (全功能自愈版) ==========" << endl;
 
-    // 【拼图 2】：向内核批地、铺路、拿指针
-    int shmid = shmget(IPC_PRIVATE, sizeof(SharedVisionData), IPC_CREAT | 0666);
-    SharedVisionData* shm_data = (SharedVisionData*)shmat(shmid, NULL, 0);
-    shm_data->is_ready = 0; 
+    // --- 1. 资源接管：带重试机制的“蹭网”逻辑 ---
+    int shmid = -1;
+    void* shm_addr = nullptr;
+    int fifo_fd = -1;
+    int uds_fd = -1;
 
-    // 【拼图 3】：裂变出父子双进程！
-    pid_t pid = fork();
-
-    if (pid > 0) { 
-        // ==========================================
-        // 👷 父进程：极其冷酷的高速采集员 (只抓图，不解码)
-        // ==========================================
+    while (true) {
+        shmid = shmget((key_t)0x1234, 1228800, 0666);
+        fifo_fd = open("/tmp/orion_cv.fifo", O_WRONLY | O_NONBLOCK);
         
-        // 【拼图 4】：你烂熟于心的 V4L2 初始化与内存映射 (mmap)
-        int fd = open("/dev/video1", O_RDWR);
-        struct v4l2_format fmt = {};
-        fmt.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-        fmt.fmt.pix.width = 640; fmt.fmt.pix.height = 480;
-        fmt.fmt.pix.pixelformat = V4L2_PIX_FMT_MJPEG;
-        ioctl(fd, VIDIOC_S_FMT, &fmt);
+        // 尝试连接主网关的 UDS 控制神经
+        uds_fd = socket(AF_UNIX, SOCK_STREAM, 0);
+        struct sockaddr_un addr;
+        memset(&addr, 0, sizeof(addr));
+        addr.sun_family = AF_UNIX;
+        strncpy(addr.sun_path, "/tmp/orion_cv.sock", sizeof(addr.sun_path) - 1);
 
-        struct v4l2_requestbuffers req = {};
-        req.count = 1; req.type = V4L2_BUF_TYPE_VIDEO_CAPTURE; req.memory = V4L2_MEMORY_MMAP;
-        ioctl(fd, VIDIOC_REQBUFS, &req);
-
-        struct v4l2_buffer buf = {};
-        buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE; buf.memory = V4L2_MEMORY_MMAP; buf.index = 0;
-        ioctl(fd, VIDIOC_QUERYBUF, &buf);
-
-        void* buffer_start = mmap(NULL, buf.length, PROT_READ | PROT_WRITE, MAP_SHARED, fd, buf.m.offset);
-        
-        ioctl(fd, VIDIOC_QBUF, &buf);
-        enum v4l2_buf_type type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-        ioctl(fd, VIDIOC_STREAMON, &type);
-
-        int grab_count = 0;
-        while (grab_count < 10) { 
-            ioctl(fd, VIDIOC_DQBUF, &buf); // 接水
-            
-            // 【神来之笔】：你刚才自己加的强制刷缓存！
-            msync(buffer_start, buf.bytesused, MS_SYNC | MS_INVALIDATE); 
-
-            // 核心并发逻辑：把真实画面塞进刚才跑通的共享内存里！
-            if (shm_data->is_ready == 0) {
-                memcpy(shm_data->payload, buffer_start, buf.bytesused); 
-                shm_data->frame_size = buf.bytesused;
-                shm_data->is_ready = 1; // 亮红灯，通知儿子来读
-		// ✅ 【终极修复】只有成功送达，才算数！
-                grab_count++; 
-                std::cout << "[父进程] 成功送达第 " << grab_count << "/10 帧！" << std::endl;
-            } else {
-                // 儿子来不及吃，丢弃此帧，但绝不增加 grab_count！
-                std::cerr << "[父进程] 儿子太慢了，直接丢弃一帧以保命！" << std::endl;
-            }
-
-            ioctl(fd, VIDIOC_QBUF, &buf); 
-            usleep(30000); 
+        if (shmid >= 0 && fifo_fd >= 0 && connect(uds_fd, (struct sockaddr*)&addr, sizeof(addr)) >= 0) {
+            shm_addr = shmat(shmid, NULL, 0);
+            fcntl(uds_fd, F_SETFL, O_NONBLOCK); // 设为非阻塞，防止听指令时卡死抓图
+            cout << "✅ IPC 全链路贯通！主网关已握手。" << endl;
+            break;
         }
 
-        // 父进程收尾 (关水管，拆路，炸毁内存)
-        ioctl(fd, VIDIOC_STREAMOFF, &type);
-        munmap(buffer_start, buf.length);
-        close(fd);
-        wait(NULL); 
-        shmdt(shm_data); 
-        shmctl(shmid, IPC_RMID, NULL); 
-        std::cout << "[父进程] V4L2 引擎关闭，完美收工！" << std::endl;
-    } 
-    else if (pid == 0) { 
-        // ==========================================
-        // 🧠 子进程：慢条斯理的视觉处理中心
-        // ==========================================
-        int process_count = 0;
-        while (process_count < 10) {
-            // 死死盯住信号灯
-            if (shm_data->is_ready == 1) {
-                // 有货了！赶紧拷贝到本地，然后立刻给父亲放行 (恢复 0)
-                unsigned char local_buffer[512 * 1024];
-                int local_size = shm_data->frame_size;
-                memcpy(local_buffer, shm_data->payload, local_size);
-                shm_data->is_ready = 0; 
-
-                // 【拼图 5】：你的 OpenCV 内存直读解码逻辑！
-                cv::Mat raw_data(1, local_size, CV_8UC1, local_buffer);
-                cv::Mat frame = cv::imdecode(raw_data, 1);
-
-                if (!frame.empty()) {
-                    std::string filename = "gateway_img_" + std::to_string(process_count) + ".jpg";
-                    cv::imwrite(filename, frame);
-                    std::cout << "  ---> [子进程] 成功解码并保存: " << filename << std::endl;
-                }
-                process_count++;
-            } else {
-                usleep(5000); // 没货的时候休眠，不抢占 CPU
-            }
-        }
-        shmdt(shm_data); // 儿子拆路
-        std::cout << "  ---> [子进程] OpenCV 引擎关闭，光荣退役！" << std::endl;
+        cout << "⌛ 等待主网关 (fusion_app) 启动... 1秒后重试" << endl;
+        if (uds_fd >= 0) close(uds_fd);
+        if (fifo_fd >= 0) close(fifo_fd);
+        sleep(1);
     }
 
+    // --- 2. V4L2 硬件驱动初始化 (保持你硬核的 V4L2 逻辑) ---
+    int v_fd = open("/dev/video1", O_RDWR);
+    struct v4l2_format fmt = {};
+    fmt.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+    fmt.fmt.pix.width = 640; fmt.fmt.pix.height = 480;
+    fmt.fmt.pix.pixelformat = V4L2_PIX_FMT_MJPEG;
+    ioctl(v_fd, VIDIOC_S_FMT, &fmt);
+
+    struct v4l2_requestbuffers req = {};
+    req.count = 1; req.type = V4L2_BUF_TYPE_VIDEO_CAPTURE; req.memory = V4L2_MEMORY_MMAP;
+    ioctl(v_fd, VIDIOC_REQBUFS, &req);
+
+    struct v4l2_buffer buf = {};
+    buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE; buf.memory = V4L2_MEMORY_MMAP; buf.index = 0;
+    ioctl(v_fd, VIDIOC_QUERYBUF, &buf);
+
+    void* buffer_start = mmap(NULL, buf.length, PROT_READ | PROT_WRITE, MAP_SHARED, v_fd, buf.m.offset);
+    ioctl(v_fd, VIDIOC_QBUF, &buf);
+    enum v4l2_buf_type type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+    ioctl(v_fd, VIDIOC_STREAMON, &type);
+
+    // --- 3. 核心循环：抓图 + 听指令 ---
+    Mat frame_bgra, frame;
+    char notify_sig = '1';
+    char uds_buf[1024];
+
+    while (true) {
+        // A. 抓图与泵送 (数据流)
+        ioctl(v_fd, VIDIOC_DQBUF, &buf);
+        msync(buffer_start, buf.bytesused, MS_SYNC | MS_INVALIDATE);
+        Mat raw_data(1, buf.bytesused, CV_8UC1, buffer_start);
+        frame = imdecode(raw_data, 1);
+
+        if (!frame.empty()) {
+            cvtColor(frame, frame_bgra, COLOR_BGR2BGRA);
+            memcpy(shm_addr, frame_bgra.data, 1228800);
+            write(fifo_fd, &notify_sig, 1);
+        }
+        ioctl(v_fd, VIDIOC_QBUF, &buf);
+
+        // B. 听从调遣 (控制流)
+        memset(uds_buf, 0, sizeof(uds_buf));
+        ssize_t n = read(uds_fd, uds_buf, sizeof(uds_buf));
+        if (n > 0) {
+            string cmd(uds_buf);
+            cout << "📥 [UDS 收到指令]: " << cmd << endl;
+            
+            // 逻辑分支：如果是抓拍指令
+            if (cmd.find("capture") != string::npos) {
+                string filename ="../run_output/snap_" + to_string(time(NULL)) + ".jpg";
+                imwrite(filename, frame);
+                cout << "📸 已执行抓拍保存: " << filename << endl;
+            }
+        } else if (n == 0) {
+            cerr << "❌ 主网关断开，视觉引擎进入紧急待机..." << endl;
+            // 此处可以加入重新连接逻辑，或者直接 exit 由 systemd 重启
+            break; 
+        }
+
+        usleep(10000); // 100fps 的上限限制
+    }
+
+    // 清理资源
+    ioctl(v_fd, VIDIOC_STREAMOFF, &type);
+    munmap(buffer_start, buf.length);
+    close(v_fd);
+    shmdt(shm_addr);
     return 0;
 }

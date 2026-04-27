@@ -10,5 +10,6 @@ void drawChar(int *pixel_ptr, int xres, int x, int y, const unsigned char *data,
 
 // --- 3. 进阶函数：绘制整个字符串 ---
 void drawString(int *pixel_ptr, int xres, int x, int y, const std::string& str, int color);
-
+// 将共享内存里的纯像素数据，按行暴力拷贝到 /dev/fb0 显存中
+void drawVideoFrame(int *pixel_ptr, int xres, int start_x, int start_y, int width, int height, void* frame_data);
 #endif

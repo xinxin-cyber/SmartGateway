@@ -22,6 +22,9 @@ cmake_install.cmake
 *.o
 *.so
 *.a
+*.sock
+*.fifo
+snap_*.jpg
 gateway_app
 
 # 4. 系统/IDE 垃圾文件
